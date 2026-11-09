@@ -49,7 +49,7 @@ core_x = 125;
 core_y = window_height - stem.image.GetHeight() + 15;
 core_d = 15;
 
-# Omejitev zanke na največ 20 slik za preprečitev dolgega nalaganja
+# POPRAVEK: Omejitev zanke na največ 20 slik za preprečitev dolgega nalaganja
 fluff_count = 20;
 index = 0;
 while (index < fluff_count){
@@ -83,10 +83,13 @@ speed = 1;
 progress_box.image = Image("progress_box.png");
 progress_box.sprite = Sprite(progress_box.image);
 
-progress_bar.image = Image("progress_bar.png");
-progress_bar.sprite = Sprite(progress_bar.image);
+progress_bar.original_image = Image("progress_bar.png");
+progress_bar.sprite = Sprite();
 
-# Funkcija za dinamični preračun položajev ob spremembi ločljivosti ali preklopu načina
+# Globalna spremenljivka za shranjevanje trenutnega napredka
+global.current_progress = 0;
+
+# Funkcija za dinamični preračun položajev ob spremembi ločljivosti
 fun relayout (){
     window_width = Window.GetWidth();
     window_height = Window.GetHeight();
@@ -96,18 +99,20 @@ fun relayout (){
     core_x = 125;
     core_y = window_height - stem.origimage.GetHeight() + 15;
 
-    # Okvir napredovanja (Progress box)
+    # Okvir napredovanja (Progress box) - Postavljen visoko (Z=10001) da ga nič ne prekrije
     progress_box.x = window_width / 2 - progress_box.image.GetWidth() / 2;
     progress_box.y = window_height * 0.75 - progress_box.image.GetHeight() / 2;
     progress_box.sprite.SetPosition(progress_box.x, progress_box.y, 10001);
 
-    # Vrstica napredovanja (Progress bar) - Izračun končnega ciljnega položaja
-    progress_bar.target_x = window_width / 2 - progress_bar.image.GetWidth() / 2;
-    progress_bar.y = window_height * 0.75 - progress_box.image.GetHeight() / 2 + (progress_box.image.GetHeight() - progress_bar.image.GetHeight()) / 2;
+    # Vrstica napredovanja (Progress bar) - Izračun osnovnih koordinat
+    progress_bar.x = window_width / 2 - progress_bar.original_image.GetWidth() / 2;
+    progress_bar.y = window_height * 0.75 - progress_box.image.GetHeight() / 2 + (progress_box.image.GetHeight() - progress_bar.original_image.GetHeight()) / 2;
     
-    # Prvi začetni izris na zaslon
-    progress_bar.sprite.SetPosition(progress_bar.target_x, progress_bar.y, 10002);
-    progress_bar.sprite.SetOpacity(1);
+    if (progress_bar.original_image) {
+        # Z=10002 zagotavlja, da je vrstica vedno *nad* okvirjem (Z=10001)
+        progress_bar.sprite.SetPosition(progress_bar.x, progress_bar.y, 10002);
+        progress_bar.sprite.SetOpacity(1);
+    }
 
     # Če je odprto pogovorno okno (geslo), osveži še njega
     if (global.dialog.box) {
@@ -132,19 +137,17 @@ fun refresh (){
     rand++;
     down_draft = Math.Min(down_draft+1, 150);
 
-    # POPRAVEK POLNJENJA: Izračun premika na zaslonu preko vgrajene funkcije Window.GetProgress()
-    if (progress_bar.image) {
-        # Pridobimo sistemski napredek (od 0.0 do 1.0)
-        current_progress = Window.GetProgress();
+    # DINAMIČNO OSVEŽEVANJE VRSTICE (Z=10002)
+    if (progress_bar.original_image) {
+        progress_width = progress_bar.original_image.GetWidth() * global.current_progress;
         
-        # Izračunamo trenutno širino vidnega dela
-        current_width = progress_bar.image.GetWidth() * current_progress;
-        if (current_width <= 0) { current_width = 1; }
+        # Popravek širine za varen izris
+        if (progress_width <= 0) { progress_width = 1; }
+        if (progress_width > progress_bar.original_image.GetWidth()) { progress_width = progress_bar.original_image.GetWidth(); }
         
-        # NamestoScale() uporabimo Crop(), ki odreže sliko od leve proti desni in ohrani pravilno obliko
-        cropped_bar = progress_bar.image.Crop(0, 0, current_width, progress_bar.image.GetHeight());
-        progress_bar.sprite.SetImage(cropped_bar);
-        progress_bar.sprite.SetPosition(progress_bar.target_x, progress_bar.y, 10002);
+        scaled_image = progress_bar.original_image.Scale(progress_width, progress_bar.original_image.GetHeight());
+        progress_bar.sprite.SetImage(scaled_image);
+        progress_bar.sprite.SetPosition(progress_bar.x, progress_bar.y, 10002);
     }
 
     # Sproti preverjaj, če se je ločljivost med izvajanjem spremenila
@@ -264,7 +267,7 @@ fun display_password_callback (prompt, bullets)
       {
         if (!dialog.bullet[index])
           {
-            dialog.bullet[index].sprite = Sprite(dialog.bullet_image);
+dialog.bullet[index].sprite = Sprite(dialog.bullet_image);
 dialog.bullet[index].x = dialog.entry.x + index * dialog.bullet_image.GetWidth();
 dialog.bullet[index].y = dialog.entry.y + dialog.entry.image.GetHeight() / 2 - dialog.bullet_image.GetHeight() / 2;
 dialog.bullet[index].z = dialog.entry.z + 1;
@@ -281,7 +284,7 @@ Plymouth.SetDisplayPasswordFunction(display_password_callback);
 #----------------------------------------- Progress Bar --------------------------------
 fun progress_callback (duration, progress)
 {
-# Funkcija je prazna, saj celotno logiko izrisovanja sedaj vodi refresh preko Window.GetProgress()
+global.current_progress = progress;
 }
 Plymouth.SetProgressFunction(progress_callback);
 
